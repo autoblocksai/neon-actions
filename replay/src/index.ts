@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import * as jsyaml from 'js-yaml';
 import stringify from 'json-stable-stringify';
 import { Dictionary, flatten, get, groupBy, sumBy } from 'lodash';
+import { z } from 'zod';
 
 interface TraceEvent {
   id: string;
@@ -56,8 +57,13 @@ interface TableRow {
   diff: CommitComparison;
 }
 
-const { AUTOBLOCKS_REPLAYS_FILEPATH, GITHUB_REF_NAME, GITHUB_WORKSPACE } =
-  process.env as Record<string, string>;
+const zEnvSchema = z.object({
+  AUTOBLOCKS_REPLAYS_FILEPATH: z.string().nonempty(),
+  GITHUB_REF_NAME: z.string().nonempty(),
+  GITHUB_WORKSPACE: z.string().nonempty(),
+});
+
+const env = zEnvSchema.parse(process.env);
 
 const parseReplayTransformConfig = (rawYaml: string): ReplayTransformConfig => {
   if (!rawYaml) {
@@ -133,7 +139,7 @@ const findReplayableTraceEvents = (args: {
 const loadReplays = async (): Promise<Dictionary<TraceEventReplay[]>> => {
   try {
     const fileContent = await fs.readFile(
-      `${GITHUB_WORKSPACE}/${AUTOBLOCKS_REPLAYS_FILEPATH}`,
+      `${env.GITHUB_WORKSPACE}/${env.AUTOBLOCKS_REPLAYS_FILEPATH}`,
       'utf8',
     );
     const parsedContent = JSON.parse(fileContent) as TraceEventReplay[];
@@ -524,8 +530,8 @@ const main = async () => {
     table.push({
       traceId,
       message: '--- ALL ---',
-      originalContentUrl: `${githubUrl}/compare/${GITHUB_REF_NAME}...${originalBranchName}`,
-      replayedContentUrl: `${githubUrl}/compare/${GITHUB_REF_NAME}...${replayedBranchName}`,
+      originalContentUrl: `${githubUrl}/compare/${env.GITHUB_REF_NAME}...${originalBranchName}`,
+      replayedContentUrl: `${githubUrl}/compare/${env.GITHUB_REF_NAME}...${replayedBranchName}`,
       diff: {
         url: `${githubUrl}/compare/${originalBranchName}...${replayedBranchName}`,
         additions,
