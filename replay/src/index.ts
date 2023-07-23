@@ -58,7 +58,7 @@ interface TableRow {
 }
 
 const zEnvSchema = z.object({
-  AUTOBLOCKS_REPLAYS_FILEPATH: z.string().nonempty(),
+  AUTOBLOCKS_REPLAYS_FILEPATH: z.string().nonempty().default('replays.json'),
   GITHUB_REF_NAME: z.string().nonempty(),
   GITHUB_WORKSPACE: z.string().nonempty(),
 });
