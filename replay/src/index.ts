@@ -234,7 +234,7 @@ const makeCommitComment = (args: {
   replayedEvents: ReplayableEvent[];
   github: typeof github;
 }): string => {
-  const rows = ['# Autoblocks Replay Results', ''];
+  const rows = ['# Autoblocks Replay Results'];
 
   const groupedRows = groupBy(args.table, 'traceId');
   for (const traceId of Object.keys(groupedRows)) {
