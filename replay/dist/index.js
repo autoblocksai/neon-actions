@@ -37835,7 +37835,7 @@ const makeCommitContent = (event) => {
  * Build the markdown comment to post to GitHub.
  */
 const makeCommitComment = (args) => {
-    const rows = ['# Autoblocks Replay Results', ''];
+    const rows = ['# Autoblocks Replay Results'];
     const groupedRows = (0, lodash_1.groupBy)(args.table, 'traceId');
     for (const traceId of Object.keys(groupedRows)) {
         rows.push('');
