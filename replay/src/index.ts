@@ -166,7 +166,7 @@ const makeComparisonPairs = (args: {
     comparisons[traceId] = [];
 
     // Maintain a counter so that the files can be ordered
-    let replayedEventIdx = 0;
+    let replayedEventIdx = 1;
 
     // For each replay, find the original trace event to compare against
     for (const replayedTraceEvent of args.replays[traceId]) {
