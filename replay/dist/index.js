@@ -37715,7 +37715,7 @@ const json_stable_stringify_1 = __importDefault(__nccwpck_require__(6645));
 const lodash_1 = __nccwpck_require__(250);
 const zod_1 = __nccwpck_require__(3301);
 const zEnvSchema = zod_1.z.object({
-    AUTOBLOCKS_REPLAYS_FILEPATH: zod_1.z.string().nonempty(),
+    AUTOBLOCKS_REPLAYS_FILEPATH: zod_1.z.string().nonempty().default('replays.json'),
     GITHUB_REF_NAME: zod_1.z.string().nonempty(),
     GITHUB_WORKSPACE: zod_1.z.string().nonempty(),
 });
