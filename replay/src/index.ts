@@ -58,7 +58,7 @@ interface TableRow {
 }
 
 const zEnvSchema = z.object({
-  AUTOBLOCKS_REPLAYS_FILEPATH: z.string().nonempty(),
+  AUTOBLOCKS_REPLAYS_FILEPATH: z.string().nonempty().default('replays.json'),
   GITHUB_REF_NAME: z.string().nonempty(),
   GITHUB_WORKSPACE: z.string().nonempty(),
 });
@@ -365,6 +365,24 @@ const main = async () => {
     },
   };
 
+  const getCommitDifferences = async (args: {
+    base: string;
+    head: string;
+  }): Promise<{ additions: number; deletions: number }> => {
+    const {
+      data: { files },
+    } = await octokit.rest.repos.compareCommits({
+      ...repoArgs,
+      base: args.base,
+      head: args.head,
+    });
+
+    return {
+      additions: sumBy(files, 'additions'),
+      deletions: sumBy(files, 'deletions'),
+    };
+  };
+
   // Keep track of information related to the commits to the `original` branch
   const originalHeadShas: Dictionary<string> = {};
   const originalContentUrls: Dictionary<string> = {};
@@ -470,22 +488,10 @@ const main = async () => {
       // Get the diff between the original event and the replayed event by
       // comparing the commit before the replayed event was committed to the
       // branch with the commit of the replayed event
-      const {
-        data: { files },
-      } = await octokit.rest.repos.compareCommits({
-        ...repoArgs,
+      const { additions, deletions } = await getCommitDifferences({
         base: headShaOfReplayedBranchBeforeCommit as string,
         head: commit.sha as string,
       });
-
-      // There is only a file if there are changes
-      let additions = 0;
-      let deletions = 0;
-      const file = (files || [])[0];
-      if (file) {
-        additions = file.additions;
-        deletions = file.deletions;
-      }
 
       replayedDiffs[key] = {
         url: commit.html_url as string,
@@ -512,16 +518,10 @@ const main = async () => {
     }
 
     // Get total diff between original and replayed branches
-    const {
-      data: { files },
-    } = await octokit.rest.repos.compareCommits({
-      ...repoArgs,
+    const { additions, deletions } = await getCommitDifferences({
       base: originalHeadShas[traceId],
       head: replayedHeadShas[traceId],
     });
-
-    const additions = sumBy(files, 'additions');
-    const deletions = sumBy(files, 'deletions');
 
     const githubUrl = `${github.context.serverUrl}/${github.context.repo.owner}/${github.context.repo.repo}`;
     const originalBranchName = makeBranchName('original', traceId);

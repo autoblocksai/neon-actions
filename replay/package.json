@@ -4,7 +4,8 @@
   "description": "Replay past Autoblocks events against your APIs",
   "scripts": {
     "build": "ncc build src/index.ts -o dist",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "author": "engineering@autoblocks.ai",
   "license": "MIT",

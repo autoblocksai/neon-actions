@@ -37715,7 +37715,7 @@ const json_stable_stringify_1 = __importDefault(__nccwpck_require__(6645));
 const lodash_1 = __nccwpck_require__(250);
 const zod_1 = __nccwpck_require__(3301);
 const zEnvSchema = zod_1.z.object({
-    AUTOBLOCKS_REPLAYS_FILEPATH: zod_1.z.string().nonempty(),
+    AUTOBLOCKS_REPLAYS_FILEPATH: zod_1.z.string().nonempty().default('replays.json'),
     GITHUB_REF_NAME: zod_1.z.string().nonempty(),
     GITHUB_WORKSPACE: zod_1.z.string().nonempty(),
 });
@@ -37931,6 +37931,13 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             name: 'autoblocks',
             email: 'github-actions@autoblocks.ai',
         } });
+    const getCommitDifferences = (args) => __awaiter(void 0, void 0, void 0, function* () {
+        const { data: { files }, } = yield octokit.rest.repos.compareCommits(Object.assign(Object.assign({}, repoArgs), { base: args.base, head: args.head }));
+        return {
+            additions: (0, lodash_1.sumBy)(files, 'additions'),
+            deletions: (0, lodash_1.sumBy)(files, 'deletions'),
+        };
+    });
     // Keep track of information related to the commits to the `original` branch
     const originalHeadShas = {};
     const originalContentUrls = {};
@@ -37987,15 +37994,10 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             // Get the diff between the original event and the replayed event by
             // comparing the commit before the replayed event was committed to the
             // branch with the commit of the replayed event
-            const { data: { files }, } = yield octokit.rest.repos.compareCommits(Object.assign(Object.assign({}, repoArgs), { base: headShaOfReplayedBranchBeforeCommit, head: commit.sha }));
-            // There is only a file if there are changes
-            let additions = 0;
-            let deletions = 0;
-            const file = (files || [])[0];
-            if (file) {
-                additions = file.additions;
-                deletions = file.deletions;
-            }
+            const { additions, deletions } = yield getCommitDifferences({
+                base: headShaOfReplayedBranchBeforeCommit,
+                head: commit.sha,
+            });
             replayedDiffs[key] = {
                 url: commit.html_url,
                 additions,
@@ -38018,9 +38020,10 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         // Get total diff between original and replayed branches
-        const { data: { files }, } = yield octokit.rest.repos.compareCommits(Object.assign(Object.assign({}, repoArgs), { base: originalHeadShas[traceId], head: replayedHeadShas[traceId] }));
-        const additions = (0, lodash_1.sumBy)(files, 'additions');
-        const deletions = (0, lodash_1.sumBy)(files, 'deletions');
+        const { additions, deletions } = yield getCommitDifferences({
+            base: originalHeadShas[traceId],
+            head: replayedHeadShas[traceId],
+        });
         const githubUrl = `${github.context.serverUrl}/${github.context.repo.owner}/${github.context.repo.repo}`;
         const originalBranchName = makeBranchName('original', traceId);
         const replayedBranchName = makeBranchName('replayed', traceId);
