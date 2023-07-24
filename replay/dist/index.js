@@ -37783,6 +37783,9 @@ const loadReplays = () => __awaiter(void 0, void 0, void 0, function* () {
         return {};
     }
 });
+/**
+ * Match each replayed event with an original event.
+ */
 const makeComparisonPairs = (args) => {
     const comparisons = {};
     // Group the original trace events by trace id
@@ -37798,17 +37801,16 @@ const makeComparisonPairs = (args) => {
             // Right now we just find the first event with the same message,
             // but we might want to support more complex matching (like on message + properties)
             const originalTraceEvent = groupedTraces[traceId].find((event) => event.message === replayedTraceEvent.message);
-            if (!originalTraceEvent) {
-                core.warning(`Could not find a matching event for replay ${replayId}`);
-                // TODO: keep this instead of continuing, and show nothing for the replayed event
-                // in the table
-                continue;
+            if (originalTraceEvent) {
+                core.info(`Found matching event for replay ${replayId}`);
+                // Remove the found trace event from the array so that it is not matched again, and also remove
+                // any events that came before it
+                groupedTraces[traceId] = groupedTraces[traceId].filter((event) => event.id !== originalTraceEvent.id &&
+                    event.timestamp >= originalTraceEvent.timestamp);
             }
-            core.info(`Found matching event for replay ${replayId}`);
-            // Remove the found trace event from the array so that it is not matched again, and also remove
-            // any events that came before it
-            groupedTraces[traceId] = groupedTraces[traceId].filter((event) => event.id !== originalTraceEvent.id &&
-                event.timestamp >= originalTraceEvent.timestamp);
+            else {
+                core.warning(`Could not find a matching event for replay ${replayId}`);
+            }
             comparisons[traceId].push({
                 id: replayId,
                 originalTraceEvent,
@@ -37955,7 +37957,12 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             const { id: comparisonId, originalTraceEvent } = comparison;
             const key = `${traceId}-${comparisonId}`;
             core.info(`Committing original event for ${comparisonId}`);
-            const { data: { content, commit }, } = yield octokit.rest.repos.createOrUpdateFileContents(Object.assign(Object.assign({}, commitArgs), { branch: originalBranchName, path: `${comparisonId}.json`, message: `${comparisonId}`, content: makeCommitContent(originalTraceEvent) }));
+            const { data: { content, commit }, } = yield octokit.rest.repos.createOrUpdateFileContents(Object.assign(Object.assign({}, commitArgs), { branch: originalBranchName, path: `${comparisonId}.json`, message: `${comparisonId}`, 
+                // If we weren't able to match the replayed event with an original event, we still write an empty
+                // file here so that it shows up when diffing the replayed branch with the original branch.
+                content: originalTraceEvent
+                    ? makeCommitContent(originalTraceEvent)
+                    : '' }));
             originalContentUrls[key] = content === null || content === void 0 ? void 0 : content.html_url;
             originalContentShas[key] = content === null || content === void 0 ? void 0 : content.sha;
             // Update the head sha of the branch w/ the latest commit

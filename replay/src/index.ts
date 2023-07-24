@@ -39,7 +39,7 @@ interface TraceEventReplay {
 
 interface TraceEventComparison {
   id: string;
-  originalTraceEvent: TraceEvent;
+  originalTraceEvent: TraceEvent | undefined;
   replayedTraceEvent: TraceEventReplay;
 }
 
@@ -149,6 +149,9 @@ const loadReplays = async (): Promise<Dictionary<TraceEventReplay[]>> => {
   }
 };
 
+/**
+ * Match each replayed event with an original event.
+ */
 const makeComparisonPairs = (args: {
   traces: Trace[];
   replays: Dictionary<TraceEventReplay[]>;
@@ -177,21 +180,19 @@ const makeComparisonPairs = (args: {
       const originalTraceEvent = groupedTraces[traceId].find(
         (event) => event.message === replayedTraceEvent.message,
       );
-      if (!originalTraceEvent) {
-        core.warning(`Could not find a matching event for replay ${replayId}`);
-        // TODO: keep this instead of continuing, and show nothing for the replayed event
-        // in the table
-        continue;
-      }
-      core.info(`Found matching event for replay ${replayId}`);
+      if (originalTraceEvent) {
+        core.info(`Found matching event for replay ${replayId}`);
 
-      // Remove the found trace event from the array so that it is not matched again, and also remove
-      // any events that came before it
-      groupedTraces[traceId] = groupedTraces[traceId].filter(
-        (event) =>
-          event.id !== originalTraceEvent.id &&
-          event.timestamp >= originalTraceEvent.timestamp,
-      );
+        // Remove the found trace event from the array so that it is not matched again, and also remove
+        // any events that came before it
+        groupedTraces[traceId] = groupedTraces[traceId].filter(
+          (event) =>
+            event.id !== originalTraceEvent.id &&
+            event.timestamp >= originalTraceEvent.timestamp,
+        );
+      } else {
+        core.warning(`Could not find a matching event for replay ${replayId}`);
+      }
 
       comparisons[traceId].push({
         id: replayId,
@@ -416,7 +417,11 @@ const main = async () => {
         branch: originalBranchName,
         path: `${comparisonId}.json`,
         message: `${comparisonId}`,
-        content: makeCommitContent(originalTraceEvent),
+        // If we weren't able to match the replayed event with an original event, we still write an empty
+        // file here so that it shows up when diffing the replayed branch with the original branch.
+        content: originalTraceEvent
+          ? makeCommitContent(originalTraceEvent)
+          : '',
       });
 
       originalContentUrls[key] = content?.html_url as string;
