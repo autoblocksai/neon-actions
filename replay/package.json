@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Replay past Autoblocks events against your APIs",
   "scripts": {
-    "build": "ncc build src/index.ts -o dist",
+    "build": "ncc build src/index.ts -o zdist",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
