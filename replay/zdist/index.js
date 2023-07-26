@@ -37727,6 +37727,34 @@ const zEnvSchema = zod_1.z.object({
     GITHUB_WORKSPACE: zod_1.z.string().nonempty(),
 });
 const env = zEnvSchema.parse(process.env);
+/**
+ * Users specify to us how to transform and filter their events for processing in YAML.
+ *
+ * We filter events based on the key-value pairs under `filters` using Lodash's _.get:
+ *
+ * ```
+ * filters:
+ *   properties.userId: 123
+ * ```
+ *
+ * Results in us only replaying events where: `_.get(event, 'properties.userId') === 123`
+ *
+ * The mappers under `mappers` specify how to transform the event payload before replaying it:
+ *
+ * ```
+ * mappers:
+ *   query: properties.query
+ *   __hiddenTraceId: traceId
+ * ```
+ *
+ * Will cause us to pass:
+ *
+ * ```
+ * { query: _.get(event, 'properties.query'), __hiddenTraceId: _.get(event, 'traceId') }
+ * ```
+ *
+ * to the replay entrypoint.
+ */
 const parseReplayTransformConfig = (rawYaml) => {
     if (!rawYaml) {
         return { filters: [], mappers: [] };
@@ -37749,6 +37777,44 @@ const parseReplayTransformConfig = (rawYaml) => {
     }
     catch (_a) {
         const msg = 'replay-transform-config must be valid YAML';
+        core.error(msg);
+        throw new Error(msg);
+    }
+};
+/**
+ * Users specify to us which properties to filter out of their events in YAML.
+ *
+ * The key is the message of the event the filter should apply to, and the value
+ * is a list of properties to filter out.
+ *
+ * ```
+ * ai.response:
+ *   - response.id
+ *   - response.created
+ * ```
+ *
+ * This will cause us to call _.omit(event.properties, ['response.id', 'response.created']) on all
+ * events where event.message === 'ai.response'.
+ */
+const parsePropertyFilterConfig = (rawYaml) => {
+    if (!rawYaml) {
+        return {};
+    }
+    try {
+        const parsed = jsyaml.load(rawYaml);
+        if (typeof parsed !== 'object') {
+            throw new Error();
+        }
+        // Validate `parsed` is an object with array values
+        for (const [key, value] of Object.entries(parsed)) {
+            if (!Array.isArray(value)) {
+                throw new Error();
+            }
+        }
+        return parsed;
+    }
+    catch (_a) {
+        const msg = 'property-filter-config must be valid YAML consisting of keys whose values are arrays of strings';
         core.error(msg);
         throw new Error(msg);
     }
@@ -37832,10 +37898,15 @@ const makeComparisonPairs = (args) => {
  * We use `stringify` from json-stable-stringify instead of `JSON.stringify` since the latter
  * is not stable and will sometimes write keys in different orders.
  */
-const stringifyEvent = (event) => {
+const stringifyEvent = (args) => {
+    // Filter out any properties on the event that the user has specified to filter out
+    const filters = args.propertyFilterConfig[args.event.message];
+    const filteredProperties = filters
+        ? (0, lodash_1.omit)(args.event.properties, filters)
+        : args.event.properties;
     // Note we don't do stringify(event) because we only want to include
     // the message and properties, not the traceId, timestamp, etc.
-    return ((0, json_stable_stringify_1.default)({ message: event.message, properties: event.properties }, { space: 2 }) + '\n');
+    return ((0, json_stable_stringify_1.default)({ message: args.event.message, properties: filteredProperties }, { space: 2 }) + '\n');
 };
 /**
  * Build the markdown comment to post to GitHub.
@@ -37985,7 +38056,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     const replayNumTraces = core.getInput('replay-num-traces', {
         required: true,
     });
-    const replayTransformConfig = core.getInput('replay-transform-config');
+    const replayTransformConfigRaw = core.getInput('replay-transform-config');
+    const propertyFilterConfigRaw = core.getInput('property-filter-config');
     const autoblocksApiKey = core.getInput('autoblocks-api-key', {
         required: true,
     });
@@ -37999,15 +38071,16 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     });
     core.info(`Found ${traces.length} traces`);
     core.debug(JSON.stringify(traces, null, 2));
-    const replayConfig = parseReplayTransformConfig(replayTransformConfig);
+    const replayTransformConfig = parseReplayTransformConfig(replayTransformConfigRaw);
     core.info(`Replay transform config:`);
-    core.info(JSON.stringify(replayConfig, null, 2));
+    core.info(JSON.stringify(replayTransformConfig, null, 2));
+    const propertyFilterConfig = parsePropertyFilterConfig(propertyFilterConfigRaw);
     const replayableEvents = findReplayableTraceEvents({
         traces,
-        isReplayable: (event) => replayConfig.filters.every((filter) => (0, lodash_1.get)(event, filter.key) === filter.value),
+        isReplayable: (event) => replayTransformConfig.filters.every((filter) => (0, lodash_1.get)(event, filter.key) === filter.value),
         makeReplayPayload: (event) => {
             const payload = {};
-            for (const mapper of replayConfig.mappers) {
+            for (const mapper of replayTransformConfig.mappers) {
                 const payloadKey = mapper.key;
                 const payloadValue = (0, lodash_1.get)(event, mapper.value);
                 payload[payloadKey] = payloadValue;
@@ -38066,7 +38139,12 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                 message: `${comparisonId}`,
                 // If we weren't able to match the replayed event with an original event, we still write an empty
                 // file here so that it shows up when diffing the replayed branch with the original branch.
-                content: originalTraceEvent ? stringifyEvent(originalTraceEvent) : '',
+                content: originalTraceEvent
+                    ? stringifyEvent({
+                        event: originalTraceEvent,
+                        propertyFilterConfig,
+                    })
+                    : '',
                 sha: undefined,
             });
             originalContentUrls[key] = contentUrl;
@@ -38105,7 +38183,10 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                 branch: replayedBranchName,
                 path: `${comparisonId}.json`,
                 message: `${comparisonId} replay`,
-                content: stringifyEvent(replayedTraceEvent),
+                content: stringifyEvent({
+                    event: replayedTraceEvent,
+                    propertyFilterConfig,
+                }),
                 // This file already exists, since the `replayed` branch was created from the `original`
                 // branch and we are committing to the same file path. So we need to set the sha to the
                 // sha of the pre-existing file.
