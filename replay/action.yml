@@ -12,6 +12,9 @@ inputs:
   replay-transform-config:
     required: false
     default: ''
+  property-filter-config:
+    required: false
+    default: ''
   autoblocks-api-key:
     required: true
   github-token:
