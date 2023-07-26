@@ -37822,16 +37822,13 @@ const makeComparisonPairs = (args) => {
     return comparisons;
 };
 /**
- * Makes a base64-encoded string for committing to GitHub.
- *
  * We use `stringify` from json-stable-stringify instead of `JSON.stringify` since the latter
  * is not stable and will sometimes write keys in different orders.
  */
-const makeCommitContent = (event) => {
-    return Buffer.from(
+const stringifyEvent = (event) => {
     // Note we don't do stringify(event) because we only want to include
     // the message and properties, not the traceId, timestamp, etc.
-    (0, json_stable_stringify_1.default)({ message: event.message, properties: event.properties }, { space: 2 }) + '\n').toString('base64');
+    return ((0, json_stable_stringify_1.default)({ message: event.message, properties: event.properties }, { space: 2 }) + '\n');
 };
 /**
  * Build the markdown comment to post to GitHub.
@@ -37861,6 +37858,59 @@ const makeCommitComment = (args) => {
     }
     return rows.join('\n');
 };
+class GitHubAPI {
+    constructor(octokit) {
+        this.octokit = octokit;
+    }
+    repoArgs() {
+        return {
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+        };
+    }
+    encodeContent(content) {
+        return Buffer.from(content).toString('base64');
+    }
+    getCommitDifferences(args) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: { files }, } = yield this.octokit.rest.repos.compareCommits(Object.assign(Object.assign({}, this.repoArgs()), { base: args.base, head: args.head }));
+            return {
+                additions: (0, lodash_1.sumBy)(files, 'additions'),
+                deletions: (0, lodash_1.sumBy)(files, 'deletions'),
+            };
+        });
+    }
+    createBranch(args) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.octokit.rest.git.createRef(Object.assign(Object.assign({}, this.repoArgs()), { ref: `refs/heads/${args.name}`, sha: args.sha }));
+        });
+    }
+    getHeadShaOfBranch(args) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: { object: { sha }, }, } = yield this.octokit.rest.git.getRef(Object.assign(Object.assign({}, this.repoArgs()), { ref: `heads/${args.name}` }));
+            return sha;
+        });
+    }
+    commitContent(args) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: { commit, content }, } = yield this.octokit.rest.repos.createOrUpdateFileContents(Object.assign(Object.assign({}, this.repoArgs()), { branch: args.branch, path: args.path, message: args.message, content: this.encodeContent(args.content), sha: args.sha, committer: {
+                    name: 'autoblocks',
+                    email: 'github-actions@autoblocks.ai',
+                } }));
+            return {
+                commitSha: commit.sha,
+                commitUrl: commit.html_url,
+                contentSha: content === null || content === void 0 ? void 0 : content.sha,
+                contentUrl: content === null || content === void 0 ? void 0 : content.html_url,
+            };
+        });
+    }
+    commentOnCommit(args) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.octokit.rest.repos.createCommitComment(Object.assign(Object.assign({}, this.repoArgs()), { commit_sha: args.sha, body: args.body }));
+        });
+    }
+}
 const main = () => __awaiter(void 0, void 0, void 0, function* () {
     const replayMethod = core.getInput('replay-method', { required: true });
     const replayUrl = core.getInput('replay-url', { required: true });
@@ -37874,6 +37924,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     });
     const githubToken = core.getInput('github-token', { required: true });
     const octokit = github.getOctokit(githubToken);
+    const gitHubApi = new GitHubAPI(octokit);
     const { traces } = yield fetchTraces({
         viewId: replayViewId,
         pageSize: replayNumTraces,
@@ -37922,24 +37973,6 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     // Create a random ID for the branches we're going to create
     const randomBranchNamePrefix = crypto_1.default.randomUUID();
     const makeBranchName = (branchType, traceId) => `autoblocks-replays/${randomBranchNamePrefix}/${traceId}/${branchType}`;
-    const repoArgs = {
-        owner: github.context.repo.owner,
-        repo: github.context.repo.repo,
-    };
-    const commitArgs = Object.assign(Object.assign({}, repoArgs), { 
-        // `sha` needs to be explicitly set to undefined when creating a new file that doesn't already exist
-        // `sha` will be overwritten when we're overwriting an existing file
-        sha: undefined, committer: {
-            name: 'autoblocks',
-            email: 'github-actions@autoblocks.ai',
-        } });
-    const getCommitDifferences = (args) => __awaiter(void 0, void 0, void 0, function* () {
-        const { data: { files }, } = yield octokit.rest.repos.compareCommits(Object.assign(Object.assign({}, repoArgs), { base: args.base, head: args.head }));
-        return {
-            additions: (0, lodash_1.sumBy)(files, 'additions'),
-            deletions: (0, lodash_1.sumBy)(files, 'deletions'),
-        };
-    });
     // Keep track of information related to the commits to the `original` branch
     const originalHeadShas = {};
     const originalContentUrls = {};
@@ -37948,7 +37981,10 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         core.info(`Committing originals for trace ${traceId}`);
         // Create a new branch for committing the original events for this trace
         const originalBranchName = makeBranchName('original', traceId);
-        yield octokit.rest.git.createRef(Object.assign(Object.assign({}, repoArgs), { ref: `refs/heads/${originalBranchName}`, sha: github.context.sha }));
+        yield gitHubApi.createBranch({
+            name: originalBranchName,
+            sha: github.context.sha,
+        });
         core.info(`Created branch ${originalBranchName}`);
         // Keep track of the head sha of this branch, we'll need it later when
         // creating the branch for the replayed events
@@ -37957,16 +37993,19 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             const { id: comparisonId, originalTraceEvent } = comparison;
             const key = `${traceId}-${comparisonId}`;
             core.info(`Committing original event for ${comparisonId}`);
-            const { data: { content, commit }, } = yield octokit.rest.repos.createOrUpdateFileContents(Object.assign(Object.assign({}, commitArgs), { branch: originalBranchName, path: `${comparisonId}.json`, message: `${comparisonId}`, 
+            const { commitSha, contentSha, contentUrl } = yield gitHubApi.commitContent({
+                branch: originalBranchName,
+                path: `${comparisonId}.json`,
+                message: `${comparisonId}`,
                 // If we weren't able to match the replayed event with an original event, we still write an empty
                 // file here so that it shows up when diffing the replayed branch with the original branch.
-                content: originalTraceEvent
-                    ? makeCommitContent(originalTraceEvent)
-                    : '' }));
-            originalContentUrls[key] = content === null || content === void 0 ? void 0 : content.html_url;
-            originalContentShas[key] = content === null || content === void 0 ? void 0 : content.sha;
+                content: originalTraceEvent ? stringifyEvent(originalTraceEvent) : '',
+                sha: undefined,
+            });
+            originalContentUrls[key] = contentUrl;
+            originalContentShas[key] = contentSha;
             // Update the head sha of the branch w/ the latest commit
-            headSha = commit.sha;
+            headSha = commitSha;
         }
         // The last sha from the loop above is the head sha of the branch
         originalHeadShas[traceId] = headSha;
@@ -37978,35 +38017,45 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     for (const traceId of Object.keys(comparisons)) {
         core.info(`Committing replays for trace ${traceId}`);
         const replayedBranchName = makeBranchName('replayed', traceId);
-        yield octokit.rest.git.createRef(Object.assign(Object.assign({}, repoArgs), { ref: `refs/heads/${replayedBranchName}`, sha: originalHeadShas[traceId] }));
-        core.info(`Created branch ${replayedBranchName}`);
-        // Keep track of the head sha of this branch, we'll need it later when
-        // comparing the head of the `replayed` branch to the head of the `original` branch
+        // The base sha for the `replayed` branch is the head sha of the `original` branch,
+        // which makes it easy to compare the two branches
         let headSha = originalHeadShas[traceId];
+        yield gitHubApi.createBranch({
+            name: replayedBranchName,
+            sha: headSha,
+        });
+        core.info(`Created branch ${replayedBranchName}`);
         for (const comparison of comparisons[traceId]) {
             const { id: comparisonId, replayedTraceEvent } = comparison;
             const key = `${traceId}-${comparisonId}`;
             // Get current head commit of replayed branch, we need it to get a diff between the original
             // event and the replayed event
-            const { data: { object: { sha: headShaOfReplayedBranchBeforeCommit }, }, } = yield octokit.rest.git.getRef(Object.assign(Object.assign({}, repoArgs), { ref: `heads/${replayedBranchName}` }));
+            const headShaOfReplayedBranchBeforeCommit = yield gitHubApi.getHeadShaOfBranch({
+                name: replayedBranchName,
+            });
             core.info(`Committing replayed event for ${comparisonId}`);
-            const { data: { content, commit }, } = yield octokit.rest.repos.createOrUpdateFileContents(Object.assign(Object.assign({}, commitArgs), { branch: replayedBranchName, path: `${comparisonId}.json`, message: `${comparisonId} replay`, content: makeCommitContent(replayedTraceEvent), 
+            const { commitSha, commitUrl, contentUrl } = yield gitHubApi.commitContent({
+                branch: replayedBranchName,
+                path: `${comparisonId}.json`,
+                message: `${comparisonId} replay`,
+                content: stringifyEvent(replayedTraceEvent),
                 // This file already exists, since the `replayed` branch was created from the `original`
                 // branch and we are committing to the same file path. So we need to set the sha to the
                 // sha of the pre-existing file.
-                sha: originalContentShas[key] }));
-            replayedContentUrls[key] = content === null || content === void 0 ? void 0 : content.html_url;
+                sha: originalContentShas[key],
+            });
+            replayedContentUrls[key] = contentUrl;
             // Update the head sha of the branch w/ the latest commit
-            headSha = commit.sha;
+            headSha = commitSha;
             // Get the diff between the original event and the replayed event by
             // comparing the commit before the replayed event was committed to the
             // branch with the commit of the replayed event
-            const { additions, deletions } = yield getCommitDifferences({
+            const { additions, deletions } = yield gitHubApi.getCommitDifferences({
                 base: headShaOfReplayedBranchBeforeCommit,
-                head: commit.sha,
+                head: commitSha,
             });
             replayedDiffs[key] = {
-                url: commit.html_url,
+                url: commitUrl,
                 additions,
                 deletions,
             };
@@ -38027,7 +38076,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         // Get total diff between original and replayed branches
-        const { additions, deletions } = yield getCommitDifferences({
+        const { additions, deletions } = yield gitHubApi.getCommitDifferences({
             base: originalHeadShas[traceId],
             head: replayedHeadShas[traceId],
         });
@@ -38049,11 +38098,13 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     core.debug('TABLE:');
     core.debug(JSON.stringify(table, null, 2));
     // Comment on commit
-    yield octokit.rest.repos.createCommitComment(Object.assign(Object.assign({}, repoArgs), { commit_sha: github.context.sha, body: makeCommitComment({
+    yield gitHubApi.commentOnCommit({
+        sha: github.context.sha,
+        body: makeCommitComment({
             table,
             replayedEvents: replayableEvents,
-            github,
-        }) }));
+        }),
+    });
 });
 main();
 
