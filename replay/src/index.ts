@@ -1,11 +1,11 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import axios, { AxiosRequestConfig } from 'axios';
-import crypto from 'crypto';
 import fs from 'fs/promises';
 import * as jsyaml from 'js-yaml';
 import stringify from 'json-stable-stringify';
 import { Dictionary, flatten, get, groupBy, sumBy } from 'lodash';
+import { nanoid } from 'nanoid';
 import { z } from 'zod';
 
 type Octokit = ReturnType<typeof github.getOctokit>;
@@ -518,12 +518,13 @@ const main = async () => {
   core.debug(JSON.stringify(comparisons, null, 2));
 
   // Create a random ID for the branches we're going to create
-  const randomBranchNamePrefix = crypto.randomUUID();
+  const randomBranchNamePrefix = nanoid(6);
 
   const makeBranchName = (
     branchType: 'original' | 'replayed',
     traceId: string,
-  ) => `autoblocks-replays/${randomBranchNamePrefix}/${traceId}/${branchType}`;
+  ) =>
+    `autoblocks-replays/${env.GITHUB_REF_NAME}/${randomBranchNamePrefix}/${traceId}/${branchType}`;
 
   // Keep track of information related to the commits to the `original` branch
   const originalHeadShas: Dictionary<string> = {};
