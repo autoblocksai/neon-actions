@@ -368,6 +368,79 @@ class GitHubAPI {
       body: args.body,
     });
   }
+
+  /**
+   * Iterates through all the comments on a PR and returns the ID of the first comment that contains the given text.
+   */
+  private async findCommentWithTextInBody(args: {
+    pullNumber: number;
+    searchString: string;
+  }): Promise<number | undefined> {
+    const iterator = this.octokit.paginate.iterator(
+      this.octokit.rest.issues.listComments,
+      {
+        ...this.repoArgs(),
+        issue_number: args.pullNumber,
+        per_page: 100,
+      },
+    );
+
+    // iterate through each response
+    for await (const { data: comments } of iterator) {
+      for (const comment of comments) {
+        if (comment.body?.includes(args.searchString)) {
+          return comment.id;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  async commentOnPullRequestedAssociatedWithCommit(args: {
+    sha: string;
+    body: string;
+  }): Promise<void> {
+    const { data: pulls } =
+      await this.octokit.rest.repos.listPullRequestsAssociatedWithCommit({
+        ...this.repoArgs(),
+        commit_sha: args.sha,
+      });
+    if (!pulls || pulls.length === 0) {
+      core.info(`No pull requests associated with commit ${args.sha}`);
+      return;
+    }
+
+    const pull = pulls[0];
+    core.info(`Found pull request associated with commit ${pull.html_url}`);
+
+    const autoblocksComment = '<!-- autoblocks-comment -->';
+    const commentBody = `${args.body}\n\n${autoblocksComment}`;
+
+    const existingCommentId = await this.findCommentWithTextInBody({
+      pullNumber: pull.number,
+      searchString: autoblocksComment,
+    });
+
+    if (existingCommentId) {
+      // Update existing comment
+      core.info(`Updating existing comment ${existingCommentId}`);
+      await this.octokit.rest.issues.updateComment({
+        ...this.repoArgs(),
+        comment_id: existingCommentId,
+        // For now we just overwrite the comment. Ideally we maintain a list of old results at the bottom
+        body: commentBody,
+      });
+    } else {
+      // Otherwise, create a new comment on the pull request
+      core.info(`Creating new comment`);
+      await this.octokit.rest.issues.createComment({
+        ...this.repoArgs(),
+        issue_number: pull.number,
+        body: commentBody,
+      });
+    }
+  }
 }
 
 const main = async () => {
@@ -606,13 +679,19 @@ const main = async () => {
   core.debug('TABLE:');
   core.debug(JSON.stringify(table, null, 2));
 
+  const comment = makeCommitComment({
+    table,
+    replayedEvents: replayableEvents,
+  });
   // Comment on commit
   await gitHubApi.commentOnCommit({
     sha: github.context.sha,
-    body: makeCommitComment({
-      table,
-      replayedEvents: replayableEvents,
-    }),
+    body: comment,
+  });
+  // Comment on pull request (if there is one)
+  await gitHubApi.commentOnPullRequestedAssociatedWithCommit({
+    sha: github.context.sha,
+    body: comment,
   });
 };
 

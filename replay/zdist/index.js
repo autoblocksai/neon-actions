@@ -37701,6 +37701,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -37910,6 +37917,66 @@ class GitHubAPI {
             yield this.octokit.rest.repos.createCommitComment(Object.assign(Object.assign({}, this.repoArgs()), { commit_sha: args.sha, body: args.body }));
         });
     }
+    /**
+     * Iterates through all the comments on a PR and returns the ID of the first comment that contains the given text.
+     */
+    findCommentWithTextInBody(args) {
+        var _a, e_1, _b, _c;
+        var _d;
+        return __awaiter(this, void 0, void 0, function* () {
+            const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listComments, Object.assign(Object.assign({}, this.repoArgs()), { issue_number: args.pullNumber, per_page: 100 }));
+            try {
+                // iterate through each response
+                for (var _e = true, iterator_1 = __asyncValues(iterator), iterator_1_1; iterator_1_1 = yield iterator_1.next(), _a = iterator_1_1.done, !_a; _e = true) {
+                    _c = iterator_1_1.value;
+                    _e = false;
+                    const { data: comments } = _c;
+                    for (const comment of comments) {
+                        if ((_d = comment.body) === null || _d === void 0 ? void 0 : _d.includes(args.searchString)) {
+                            return comment.id;
+                        }
+                    }
+                }
+            }
+            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            finally {
+                try {
+                    if (!_e && !_a && (_b = iterator_1.return)) yield _b.call(iterator_1);
+                }
+                finally { if (e_1) throw e_1.error; }
+            }
+            return undefined;
+        });
+    }
+    commentOnPullRequestedAssociatedWithCommit(args) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: pulls } = yield this.octokit.rest.repos.listPullRequestsAssociatedWithCommit(Object.assign(Object.assign({}, this.repoArgs()), { commit_sha: args.sha }));
+            if (!pulls || pulls.length === 0) {
+                core.info(`No pull requests associated with commit ${args.sha}`);
+                return;
+            }
+            const pull = pulls[0];
+            core.info(`Found pull request associated with commit ${pull.html_url}`);
+            const autoblocksComment = '<!-- autoblocks-comment -->';
+            const commentBody = `${args.body}\n\n${autoblocksComment}`;
+            const existingCommentId = yield this.findCommentWithTextInBody({
+                pullNumber: pull.number,
+                searchString: autoblocksComment,
+            });
+            if (existingCommentId) {
+                // Update existing comment
+                core.info(`Updating existing comment ${existingCommentId}`);
+                yield this.octokit.rest.issues.updateComment(Object.assign(Object.assign({}, this.repoArgs()), { comment_id: existingCommentId, 
+                    // For now we just overwrite the comment. Ideally we maintain a list of old results at the bottom
+                    body: commentBody }));
+            }
+            else {
+                // Otherwise, create a new comment on the pull request
+                core.info(`Creating new comment`);
+                yield this.octokit.rest.issues.createComment(Object.assign(Object.assign({}, this.repoArgs()), { issue_number: pull.number, body: commentBody }));
+            }
+        });
+    }
 }
 const main = () => __awaiter(void 0, void 0, void 0, function* () {
     const replayMethod = core.getInput('replay-method', { required: true });
@@ -38097,13 +38164,19 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     core.debug('TABLE:');
     core.debug(JSON.stringify(table, null, 2));
+    const comment = makeCommitComment({
+        table,
+        replayedEvents: replayableEvents,
+    });
     // Comment on commit
     yield gitHubApi.commentOnCommit({
         sha: github.context.sha,
-        body: makeCommitComment({
-            table,
-            replayedEvents: replayableEvents,
-        }),
+        body: comment,
+    });
+    // Comment on pull request (if there is one)
+    yield gitHubApi.commentOnPullRequestedAssociatedWithCommit({
+        sha: github.context.sha,
+        body: comment,
     });
 });
 main();
