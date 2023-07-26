@@ -37869,7 +37869,7 @@ class GitHubAPI {
     constructor(octokit) {
         this.octokit = octokit;
     }
-    repoArgs() {
+    ownerAndRepo() {
         return {
             owner: github.context.repo.owner,
             repo: github.context.repo.repo,
@@ -37880,7 +37880,7 @@ class GitHubAPI {
     }
     getCommitDifferences(args) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { data: { files }, } = yield this.octokit.rest.repos.compareCommits(Object.assign(Object.assign({}, this.repoArgs()), { base: args.base, head: args.head }));
+            const { data: { files }, } = yield this.octokit.rest.repos.compareCommits(Object.assign(Object.assign({}, this.ownerAndRepo()), { base: args.base, head: args.head }));
             return {
                 additions: (0, lodash_1.sumBy)(files, 'additions'),
                 deletions: (0, lodash_1.sumBy)(files, 'deletions'),
@@ -37889,18 +37889,18 @@ class GitHubAPI {
     }
     createBranch(args) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.octokit.rest.git.createRef(Object.assign(Object.assign({}, this.repoArgs()), { ref: `refs/heads/${args.name}`, sha: args.sha }));
+            yield this.octokit.rest.git.createRef(Object.assign(Object.assign({}, this.ownerAndRepo()), { ref: `refs/heads/${args.name}`, sha: args.sha }));
         });
     }
     getHeadShaOfBranch(args) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { data: { object: { sha }, }, } = yield this.octokit.rest.git.getRef(Object.assign(Object.assign({}, this.repoArgs()), { ref: `heads/${args.name}` }));
+            const { data: { object: { sha }, }, } = yield this.octokit.rest.git.getRef(Object.assign(Object.assign({}, this.ownerAndRepo()), { ref: `heads/${args.name}` }));
             return sha;
         });
     }
     commitContent(args) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { data: { commit, content }, } = yield this.octokit.rest.repos.createOrUpdateFileContents(Object.assign(Object.assign({}, this.repoArgs()), { branch: args.branch, path: args.path, message: args.message, content: this.encodeContent(args.content), sha: args.sha, committer: {
+            const { data: { commit, content }, } = yield this.octokit.rest.repos.createOrUpdateFileContents(Object.assign(Object.assign({}, this.ownerAndRepo()), { branch: args.branch, path: args.path, message: args.message, content: this.encodeContent(args.content), sha: args.sha, committer: {
                     name: 'autoblocks',
                     email: 'github-actions@autoblocks.ai',
                 } }));
@@ -37914,7 +37914,7 @@ class GitHubAPI {
     }
     commentOnCommit(args) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.octokit.rest.repos.createCommitComment(Object.assign(Object.assign({}, this.repoArgs()), { commit_sha: args.sha, body: args.body }));
+            yield this.octokit.rest.repos.createCommitComment(Object.assign(Object.assign({}, this.ownerAndRepo()), { commit_sha: args.sha, body: args.body }));
         });
     }
     /**
@@ -37924,7 +37924,7 @@ class GitHubAPI {
         var _a, e_1, _b, _c;
         var _d;
         return __awaiter(this, void 0, void 0, function* () {
-            const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listComments, Object.assign(Object.assign({}, this.repoArgs()), { issue_number: args.pullNumber, per_page: 100 }));
+            const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listComments, Object.assign(Object.assign({}, this.ownerAndRepo()), { issue_number: args.pullNumber, per_page: 100 }));
             try {
                 // iterate through each response
                 for (var _e = true, iterator_1 = __asyncValues(iterator), iterator_1_1; iterator_1_1 = yield iterator_1.next(), _a = iterator_1_1.done, !_a; _e = true) {
@@ -37950,7 +37950,7 @@ class GitHubAPI {
     }
     commentOnPullRequestedAssociatedWithCommit(args) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { data: pulls } = yield this.octokit.rest.repos.listPullRequestsAssociatedWithCommit(Object.assign(Object.assign({}, this.repoArgs()), { commit_sha: args.sha }));
+            const { data: pulls } = yield this.octokit.rest.repos.listPullRequestsAssociatedWithCommit(Object.assign(Object.assign({}, this.ownerAndRepo()), { commit_sha: args.sha }));
             if (!pulls || pulls.length === 0) {
                 core.info(`No pull requests associated with commit ${args.sha}`);
                 return;
@@ -37966,14 +37966,14 @@ class GitHubAPI {
             if (existingCommentId) {
                 // Update existing comment
                 core.info(`Updating existing comment ${existingCommentId}`);
-                yield this.octokit.rest.issues.updateComment(Object.assign(Object.assign({}, this.repoArgs()), { comment_id: existingCommentId, 
+                yield this.octokit.rest.issues.updateComment(Object.assign(Object.assign({}, this.ownerAndRepo()), { comment_id: existingCommentId, 
                     // For now we just overwrite the comment. Ideally we maintain a list of old results at the bottom
                     body: commentBody }));
             }
             else {
                 // Otherwise, create a new comment on the pull request
                 core.info(`Creating new comment`);
-                yield this.octokit.rest.issues.createComment(Object.assign(Object.assign({}, this.repoArgs()), { issue_number: pull.number, body: commentBody }));
+                yield this.octokit.rest.issues.createComment(Object.assign(Object.assign({}, this.ownerAndRepo()), { issue_number: pull.number, body: commentBody }));
             }
         });
     }

@@ -275,7 +275,7 @@ class GitHubAPI {
     this.octokit = octokit;
   }
 
-  private repoArgs(): { owner: string; repo: string } {
+  private ownerAndRepo(): { owner: string; repo: string } {
     return {
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
@@ -293,7 +293,7 @@ class GitHubAPI {
     const {
       data: { files },
     } = await this.octokit.rest.repos.compareCommits({
-      ...this.repoArgs(),
+      ...this.ownerAndRepo(),
       base: args.base,
       head: args.head,
     });
@@ -306,7 +306,7 @@ class GitHubAPI {
 
   async createBranch(args: { name: string; sha: string }): Promise<void> {
     await this.octokit.rest.git.createRef({
-      ...this.repoArgs(),
+      ...this.ownerAndRepo(),
       ref: `refs/heads/${args.name}`,
       sha: args.sha,
     });
@@ -318,7 +318,7 @@ class GitHubAPI {
         object: { sha },
       },
     } = await this.octokit.rest.git.getRef({
-      ...this.repoArgs(),
+      ...this.ownerAndRepo(),
       ref: `heads/${args.name}`,
     });
 
@@ -341,7 +341,7 @@ class GitHubAPI {
     const {
       data: { commit, content },
     } = await this.octokit.rest.repos.createOrUpdateFileContents({
-      ...this.repoArgs(),
+      ...this.ownerAndRepo(),
       branch: args.branch,
       path: args.path,
       message: args.message,
@@ -363,7 +363,7 @@ class GitHubAPI {
 
   async commentOnCommit(args: { sha: string; body: string }): Promise<void> {
     await this.octokit.rest.repos.createCommitComment({
-      ...this.repoArgs(),
+      ...this.ownerAndRepo(),
       commit_sha: args.sha,
       body: args.body,
     });
@@ -379,7 +379,7 @@ class GitHubAPI {
     const iterator = this.octokit.paginate.iterator(
       this.octokit.rest.issues.listComments,
       {
-        ...this.repoArgs(),
+        ...this.ownerAndRepo(),
         issue_number: args.pullNumber,
         per_page: 100,
       },
@@ -403,7 +403,7 @@ class GitHubAPI {
   }): Promise<void> {
     const { data: pulls } =
       await this.octokit.rest.repos.listPullRequestsAssociatedWithCommit({
-        ...this.repoArgs(),
+        ...this.ownerAndRepo(),
         commit_sha: args.sha,
       });
     if (!pulls || pulls.length === 0) {
@@ -426,7 +426,7 @@ class GitHubAPI {
       // Update existing comment
       core.info(`Updating existing comment ${existingCommentId}`);
       await this.octokit.rest.issues.updateComment({
-        ...this.repoArgs(),
+        ...this.ownerAndRepo(),
         comment_id: existingCommentId,
         // For now we just overwrite the comment. Ideally we maintain a list of old results at the bottom
         body: commentBody,
@@ -435,7 +435,7 @@ class GitHubAPI {
       // Otherwise, create a new comment on the pull request
       core.info(`Creating new comment`);
       await this.octokit.rest.issues.createComment({
-        ...this.repoArgs(),
+        ...this.ownerAndRepo(),
         issue_number: pull.number,
         body: commentBody,
       });
