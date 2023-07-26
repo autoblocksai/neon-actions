@@ -37708,11 +37708,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const axios_1 = __importDefault(__nccwpck_require__(8757));
-const crypto_1 = __importDefault(__nccwpck_require__(6113));
 const promises_1 = __importDefault(__nccwpck_require__(3292));
 const jsyaml = __importStar(__nccwpck_require__(1917));
 const json_stable_stringify_1 = __importDefault(__nccwpck_require__(6645));
 const lodash_1 = __nccwpck_require__(250);
+const nanoid_1 = __nccwpck_require__(9934);
 const zod_1 = __nccwpck_require__(3301);
 const zEnvSchema = zod_1.z.object({
     AUTOBLOCKS_REPLAYS_FILEPATH: zod_1.z.string().nonempty().default('replays.json'),
@@ -37920,8 +37920,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     core.info(`Made ${Object.keys(comparisons).length} comparison pairs`);
     core.debug(JSON.stringify(comparisons, null, 2));
     // Create a random ID for the branches we're going to create
-    const randomBranchNamePrefix = crypto_1.default.randomUUID();
-    const makeBranchName = (branchType, traceId) => `autoblocks-replays/${randomBranchNamePrefix}/${traceId}/${branchType}`;
+    const randomBranchNamePrefix = (0, nanoid_1.nanoid)(6);
+    const makeBranchName = (branchType, traceId) => `autoblocks-replays/${env.GITHUB_REF_NAME}/${randomBranchNamePrefix}/${traceId}/${branchType}`;
     const repoArgs = {
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
@@ -42449,6 +42449,78 @@ module.exports = axios;
 
 /***/ }),
 
+/***/ 9934:
+/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __nccwpck_require__) => {
+
+"use strict";
+// ESM COMPAT FLAG
+__nccwpck_require__.r(__webpack_exports__);
+
+// EXPORTS
+__nccwpck_require__.d(__webpack_exports__, {
+  "customAlphabet": () => (/* binding */ customAlphabet),
+  "customRandom": () => (/* binding */ customRandom),
+  "nanoid": () => (/* binding */ nanoid),
+  "random": () => (/* binding */ random),
+  "urlAlphabet": () => (/* reexport */ urlAlphabet)
+});
+
+// EXTERNAL MODULE: external "crypto"
+var external_crypto_ = __nccwpck_require__(6113);
+;// CONCATENATED MODULE: ./node_modules/nanoid/url-alphabet/index.js
+const urlAlphabet =
+  'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict'
+
+;// CONCATENATED MODULE: ./node_modules/nanoid/index.js
+
+
+
+const POOL_SIZE_MULTIPLIER = 128
+let pool, poolOffset
+let fillPool = bytes => {
+  if (!pool || pool.length < bytes) {
+    pool = Buffer.allocUnsafe(bytes * POOL_SIZE_MULTIPLIER)
+    ;(0,external_crypto_.randomFillSync)(pool)
+    poolOffset = 0
+  } else if (poolOffset + bytes > pool.length) {
+    (0,external_crypto_.randomFillSync)(pool)
+    poolOffset = 0
+  }
+  poolOffset += bytes
+}
+let random = bytes => {
+  fillPool((bytes -= 0))
+  return pool.subarray(poolOffset - bytes, poolOffset)
+}
+let customRandom = (alphabet, defaultSize, getRandom) => {
+  let mask = (2 << (31 - Math.clz32((alphabet.length - 1) | 1))) - 1
+  let step = Math.ceil((1.6 * mask * defaultSize) / alphabet.length)
+  return (size = defaultSize) => {
+    let id = ''
+    while (true) {
+      let bytes = getRandom(step)
+      let i = step
+      while (i--) {
+        id += alphabet[bytes[i] & mask] || ''
+        if (id.length === size) return id
+      }
+    }
+  }
+}
+let customAlphabet = (alphabet, size = 21) =>
+  customRandom(alphabet, size, random)
+let nanoid = (size = 21) => {
+  fillPool((size -= 0))
+  let id = ''
+  for (let i = poolOffset - size; i < poolOffset; i++) {
+    id += urlAlphabet[pool[i] & 63]
+  }
+  return id
+}
+
+
+/***/ }),
+
 /***/ 3765:
 /***/ ((module) => {
 
@@ -42501,6 +42573,34 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ 	}
 /******/ 	
 /************************************************************************/
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__nccwpck_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__nccwpck_require__.o(definition, key) && !__nccwpck_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__nccwpck_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/node module decorator */
 /******/ 	(() => {
 /******/ 		__nccwpck_require__.nmd = (module) => {
