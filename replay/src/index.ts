@@ -8,6 +8,8 @@ import { Dictionary, flatten, get, groupBy, sumBy } from 'lodash';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 
+type Octokit = ReturnType<typeof github.getOctokit>;
+
 interface TraceEvent {
   id: string;
   traceId: string;
@@ -208,23 +210,21 @@ const makeComparisonPairs = (args: {
 };
 
 /**
- * Makes a base64-encoded string for committing to GitHub.
- *
  * We use `stringify` from json-stable-stringify instead of `JSON.stringify` since the latter
  * is not stable and will sometimes write keys in different orders.
  */
-const makeCommitContent = (event: {
+const stringifyEvent = (event: {
   message: string;
   properties: Record<string, unknown>;
 }) => {
-  return Buffer.from(
-    // Note we don't do stringify(event) because we only want to include
-    // the message and properties, not the traceId, timestamp, etc.
+  // Note we don't do stringify(event) because we only want to include
+  // the message and properties, not the traceId, timestamp, etc.
+  return (
     stringify(
       { message: event.message, properties: event.properties },
       { space: 2 },
-    ) + '\n',
-  ).toString('base64');
+    ) + '\n'
+  );
 };
 
 /**
@@ -233,7 +233,6 @@ const makeCommitContent = (event: {
 const makeCommitComment = (args: {
   table: TableRow[];
   replayedEvents: ReplayableEvent[];
-  github: typeof github;
 }): string => {
   const rows = ['# Autoblocks Replay Results'];
 
@@ -269,6 +268,181 @@ const makeCommitComment = (args: {
   return rows.join('\n');
 };
 
+class GitHubAPI {
+  private octokit: Octokit;
+
+  constructor(octokit: Octokit) {
+    this.octokit = octokit;
+  }
+
+  private ownerAndRepo(): { owner: string; repo: string } {
+    return {
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
+    };
+  }
+
+  private encodeContent(content: string): string {
+    return Buffer.from(content).toString('base64');
+  }
+
+  async getCommitDifferences(args: {
+    base: string;
+    head: string;
+  }): Promise<{ additions: number; deletions: number }> {
+    const {
+      data: { files },
+    } = await this.octokit.rest.repos.compareCommits({
+      ...this.ownerAndRepo(),
+      base: args.base,
+      head: args.head,
+    });
+
+    return {
+      additions: sumBy(files, 'additions'),
+      deletions: sumBy(files, 'deletions'),
+    };
+  }
+
+  async createBranch(args: { name: string; sha: string }): Promise<void> {
+    await this.octokit.rest.git.createRef({
+      ...this.ownerAndRepo(),
+      ref: `refs/heads/${args.name}`,
+      sha: args.sha,
+    });
+  }
+
+  async getHeadShaOfBranch(args: { name: string }): Promise<string> {
+    const {
+      data: {
+        object: { sha },
+      },
+    } = await this.octokit.rest.git.getRef({
+      ...this.ownerAndRepo(),
+      ref: `heads/${args.name}`,
+    });
+
+    return sha as string;
+  }
+
+  async commitContent(args: {
+    branch: string;
+    path: string;
+    message: string;
+    content: string;
+    // `sha` is undefined when creating a new file, and is required when updating an existing file
+    sha: string | undefined;
+  }): Promise<{
+    commitSha: string;
+    commitUrl: string;
+    contentSha: string;
+    contentUrl: string;
+  }> {
+    const {
+      data: { commit, content },
+    } = await this.octokit.rest.repos.createOrUpdateFileContents({
+      ...this.ownerAndRepo(),
+      branch: args.branch,
+      path: args.path,
+      message: args.message,
+      content: this.encodeContent(args.content),
+      sha: args.sha,
+      committer: {
+        name: 'autoblocks',
+        email: 'github-actions@autoblocks.ai',
+      },
+    });
+
+    return {
+      commitSha: commit.sha as string,
+      commitUrl: commit.html_url as string,
+      contentSha: content?.sha as string,
+      contentUrl: content?.html_url as string,
+    };
+  }
+
+  async commentOnCommit(args: { sha: string; body: string }): Promise<void> {
+    await this.octokit.rest.repos.createCommitComment({
+      ...this.ownerAndRepo(),
+      commit_sha: args.sha,
+      body: args.body,
+    });
+  }
+
+  /**
+   * Iterates through all the comments on a PR and returns the ID of the first comment that contains the given text.
+   */
+  private async findCommentWithTextInBody(args: {
+    pullNumber: number;
+    searchString: string;
+  }): Promise<number | undefined> {
+    const iterator = this.octokit.paginate.iterator(
+      this.octokit.rest.issues.listComments,
+      {
+        ...this.ownerAndRepo(),
+        issue_number: args.pullNumber,
+        per_page: 100,
+      },
+    );
+
+    // iterate through each response
+    for await (const { data: comments } of iterator) {
+      for (const comment of comments) {
+        if (comment.body?.includes(args.searchString)) {
+          return comment.id;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  async commentOnPullRequestedAssociatedWithCommit(args: {
+    sha: string;
+    body: string;
+  }): Promise<void> {
+    const { data: pulls } =
+      await this.octokit.rest.repos.listPullRequestsAssociatedWithCommit({
+        ...this.ownerAndRepo(),
+        commit_sha: args.sha,
+      });
+    if (!pulls || pulls.length === 0) {
+      core.info(`No pull requests associated with commit ${args.sha}`);
+      return;
+    }
+
+    const pull = pulls[0];
+    core.info(`Found pull request associated with commit ${pull.html_url}`);
+
+    const autoblocksComment = '<!-- autoblocks-comment -->';
+    const commentBody = `${args.body}\n\n${autoblocksComment}`;
+
+    const existingCommentId = await this.findCommentWithTextInBody({
+      pullNumber: pull.number,
+      searchString: autoblocksComment,
+    });
+
+    if (existingCommentId) {
+      // Update existing comment
+      core.info(`Updating existing comment ${existingCommentId}`);
+      await this.octokit.rest.issues.updateComment({
+        ...this.ownerAndRepo(),
+        comment_id: existingCommentId,
+        // For now we just overwrite the comment. Ideally we maintain a list of old results at the bottom
+        body: commentBody,
+      });
+    } else {
+      // Otherwise, create a new comment on the pull request
+      core.info(`Creating new comment`);
+      await this.octokit.rest.issues.createComment({
+        ...this.ownerAndRepo(),
+        issue_number: pull.number,
+        body: commentBody,
+      });
+    }
+  }
+}
+
 const main = async () => {
   const replayMethod = core.getInput('replay-method', { required: true });
   const replayUrl = core.getInput('replay-url', { required: true });
@@ -283,6 +457,7 @@ const main = async () => {
   const githubToken = core.getInput('github-token', { required: true });
 
   const octokit = github.getOctokit(githubToken);
+  const gitHubApi = new GitHubAPI(octokit);
 
   const { traces } = await fetchTraces({
     viewId: replayViewId,
@@ -351,40 +526,6 @@ const main = async () => {
   ) =>
     `autoblocks-replays/${env.GITHUB_REF_NAME}/${randomBranchNamePrefix}/${traceId}/${branchType}`;
 
-  const repoArgs = {
-    owner: github.context.repo.owner,
-    repo: github.context.repo.repo,
-  };
-
-  const commitArgs = {
-    ...repoArgs,
-    // `sha` needs to be explicitly set to undefined when creating a new file that doesn't already exist
-    // `sha` will be overwritten when we're overwriting an existing file
-    sha: undefined,
-    committer: {
-      name: 'autoblocks',
-      email: 'github-actions@autoblocks.ai',
-    },
-  };
-
-  const getCommitDifferences = async (args: {
-    base: string;
-    head: string;
-  }): Promise<{ additions: number; deletions: number }> => {
-    const {
-      data: { files },
-    } = await octokit.rest.repos.compareCommits({
-      ...repoArgs,
-      base: args.base,
-      head: args.head,
-    });
-
-    return {
-      additions: sumBy(files, 'additions'),
-      deletions: sumBy(files, 'deletions'),
-    };
-  };
-
   // Keep track of information related to the commits to the `original` branch
   const originalHeadShas: Dictionary<string> = {};
   const originalContentUrls: Dictionary<string> = {};
@@ -395,9 +536,8 @@ const main = async () => {
 
     // Create a new branch for committing the original events for this trace
     const originalBranchName = makeBranchName('original', traceId);
-    await octokit.rest.git.createRef({
-      ...repoArgs,
-      ref: `refs/heads/${originalBranchName}`,
+    await gitHubApi.createBranch({
+      name: originalBranchName,
       sha: github.context.sha,
     });
     core.info(`Created branch ${originalBranchName}`);
@@ -411,25 +551,22 @@ const main = async () => {
       const key = `${traceId}-${comparisonId}`;
 
       core.info(`Committing original event for ${comparisonId}`);
-      const {
-        data: { content, commit },
-      } = await octokit.rest.repos.createOrUpdateFileContents({
-        ...commitArgs,
-        branch: originalBranchName,
-        path: `${comparisonId}.json`,
-        message: `${comparisonId}`,
-        // If we weren't able to match the replayed event with an original event, we still write an empty
-        // file here so that it shows up when diffing the replayed branch with the original branch.
-        content: originalTraceEvent
-          ? makeCommitContent(originalTraceEvent)
-          : '',
-      });
+      const { commitSha, contentSha, contentUrl } =
+        await gitHubApi.commitContent({
+          branch: originalBranchName,
+          path: `${comparisonId}.json`,
+          message: `${comparisonId}`,
+          // If we weren't able to match the replayed event with an original event, we still write an empty
+          // file here so that it shows up when diffing the replayed branch with the original branch.
+          content: originalTraceEvent ? stringifyEvent(originalTraceEvent) : '',
+          sha: undefined,
+        });
 
-      originalContentUrls[key] = content?.html_url as string;
-      originalContentShas[key] = content?.sha as string;
+      originalContentUrls[key] = contentUrl;
+      originalContentShas[key] = contentSha;
 
       // Update the head sha of the branch w/ the latest commit
-      headSha = commit.sha as string;
+      headSha = commitSha;
     }
 
     // The last sha from the loop above is the head sha of the branch
@@ -445,16 +582,16 @@ const main = async () => {
     core.info(`Committing replays for trace ${traceId}`);
 
     const replayedBranchName = makeBranchName('replayed', traceId);
-    await octokit.rest.git.createRef({
-      ...repoArgs,
-      ref: `refs/heads/${replayedBranchName}`,
-      sha: originalHeadShas[traceId],
+
+    // The base sha for the `replayed` branch is the head sha of the `original` branch,
+    // which makes it easy to compare the two branches
+    let headSha = originalHeadShas[traceId];
+
+    await gitHubApi.createBranch({
+      name: replayedBranchName,
+      sha: headSha,
     });
     core.info(`Created branch ${replayedBranchName}`);
-
-    // Keep track of the head sha of this branch, we'll need it later when
-    // comparing the head of the `replayed` branch to the head of the `original` branch
-    let headSha = originalHeadShas[traceId];
 
     for (const comparison of comparisons[traceId]) {
       const { id: comparisonId, replayedTraceEvent } = comparison;
@@ -462,45 +599,39 @@ const main = async () => {
 
       // Get current head commit of replayed branch, we need it to get a diff between the original
       // event and the replayed event
-      const {
-        data: {
-          object: { sha: headShaOfReplayedBranchBeforeCommit },
-        },
-      } = await octokit.rest.git.getRef({
-        ...repoArgs,
-        ref: `heads/${replayedBranchName}`,
-      });
+      const headShaOfReplayedBranchBeforeCommit =
+        await gitHubApi.getHeadShaOfBranch({
+          name: replayedBranchName,
+        });
 
       core.info(`Committing replayed event for ${comparisonId}`);
-      const {
-        data: { content, commit },
-      } = await octokit.rest.repos.createOrUpdateFileContents({
-        ...commitArgs,
-        branch: replayedBranchName,
-        path: `${comparisonId}.json`,
-        message: `${comparisonId} replay`,
-        content: makeCommitContent(replayedTraceEvent),
-        // This file already exists, since the `replayed` branch was created from the `original`
-        // branch and we are committing to the same file path. So we need to set the sha to the
-        // sha of the pre-existing file.
-        sha: originalContentShas[key],
-      });
+      const { commitSha, commitUrl, contentUrl } =
+        await gitHubApi.commitContent({
+          branch: replayedBranchName,
+          path: `${comparisonId}.json`,
+          message: `${comparisonId} replay`,
+          content: stringifyEvent(replayedTraceEvent),
+          // This file already exists, since the `replayed` branch was created from the `original`
+          // branch and we are committing to the same file path. So we need to set the sha to the
+          // sha of the pre-existing file.
+          sha: originalContentShas[key],
+        });
 
-      replayedContentUrls[key] = content?.html_url as string;
+      replayedContentUrls[key] = contentUrl;
 
       // Update the head sha of the branch w/ the latest commit
-      headSha = commit.sha as string;
+      headSha = commitSha;
 
       // Get the diff between the original event and the replayed event by
       // comparing the commit before the replayed event was committed to the
       // branch with the commit of the replayed event
-      const { additions, deletions } = await getCommitDifferences({
-        base: headShaOfReplayedBranchBeforeCommit as string,
-        head: commit.sha as string,
+      const { additions, deletions } = await gitHubApi.getCommitDifferences({
+        base: headShaOfReplayedBranchBeforeCommit,
+        head: commitSha,
       });
 
       replayedDiffs[key] = {
-        url: commit.html_url as string,
+        url: commitUrl,
         additions,
         deletions,
       };
@@ -524,7 +655,7 @@ const main = async () => {
     }
 
     // Get total diff between original and replayed branches
-    const { additions, deletions } = await getCommitDifferences({
+    const { additions, deletions } = await gitHubApi.getCommitDifferences({
       base: originalHeadShas[traceId],
       head: replayedHeadShas[traceId],
     });
@@ -549,15 +680,19 @@ const main = async () => {
   core.debug('TABLE:');
   core.debug(JSON.stringify(table, null, 2));
 
+  const comment = makeCommitComment({
+    table,
+    replayedEvents: replayableEvents,
+  });
   // Comment on commit
-  await octokit.rest.repos.createCommitComment({
-    ...repoArgs,
-    commit_sha: github.context.sha,
-    body: makeCommitComment({
-      table,
-      replayedEvents: replayableEvents,
-      github,
-    }),
+  await gitHubApi.commentOnCommit({
+    sha: github.context.sha,
+    body: comment,
+  });
+  // Comment on pull request (if there is one)
+  await gitHubApi.commentOnPullRequestedAssociatedWithCommit({
+    sha: github.context.sha,
+    body: comment,
   });
 };
 
