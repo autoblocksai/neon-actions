@@ -37721,9 +37721,15 @@ const json_stable_stringify_1 = __importDefault(__nccwpck_require__(6645));
 const lodash_1 = __nccwpck_require__(250);
 const nanoid_1 = __nccwpck_require__(9934);
 const zod_1 = __nccwpck_require__(3301);
+/**
+ * See https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables for
+ * a description of the default environment variables available during a GitHub Actions workflow run.
+ */
 const zEnvSchema = zod_1.z.object({
     AUTOBLOCKS_REPLAYS_FILEPATH: zod_1.z.string().nonempty().default('replays.json'),
     GITHUB_REF_NAME: zod_1.z.string().nonempty(),
+    GITHUB_REPOSITORY: zod_1.z.string().nonempty(),
+    GITHUB_SHA: zod_1.z.string().nonempty(),
     GITHUB_WORKSPACE: zod_1.z.string().nonempty(),
 });
 const env = zEnvSchema.parse(process.env);
@@ -37825,7 +37831,12 @@ const parsePropertyFilterConfig = (rawYaml) => {
 const fetchTraces = (args) => __awaiter(void 0, void 0, void 0, function* () {
     const { data } = yield axios_1.default.get(`https://api.autoblocks.ai/views/${args.viewId}/traces`, {
         params: { pageSize: args.pageSize },
-        headers: { Authorization: `Bearer ${args.apiKey}` },
+        headers: {
+            Authorization: `Bearer ${args.apiKey}`,
+            'X-Autoblocks-Sha': env.GITHUB_SHA,
+            'X-Autoblocks-Ref': env.GITHUB_REF_NAME,
+            'X-Autoblocks-Repo': env.GITHUB_REPOSITORY,
+        },
     });
     return data;
 });
@@ -38123,12 +38134,12 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const originalBranchName = makeBranchName('original', traceId);
         yield gitHubApi.createBranch({
             name: originalBranchName,
-            sha: github.context.sha,
+            sha: env.GITHUB_SHA,
         });
         core.info(`Created branch ${originalBranchName}`);
         // Keep track of the head sha of this branch, we'll need it later when
         // creating the branch for the replayed events
-        let headSha = github.context.sha;
+        let headSha = env.GITHUB_SHA;
         for (const comparison of comparisons[traceId]) {
             const { id: comparisonId, originalTraceEvent } = comparison;
             const key = `${traceId}-${comparisonId}`;
@@ -38251,12 +38262,12 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     });
     // Comment on commit
     yield gitHubApi.commentOnCommit({
-        sha: github.context.sha,
+        sha: env.GITHUB_SHA,
         body: comment,
     });
     // Comment on pull request (if there is one)
     yield gitHubApi.commentOnPullRequestedAssociatedWithCommit({
-        sha: github.context.sha,
+        sha: env.GITHUB_SHA,
         body: comment,
     });
 });

@@ -59,9 +59,15 @@ interface TableRow {
   diff: CommitComparison;
 }
 
+/**
+ * See https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables for
+ * a description of the default environment variables available during a GitHub Actions workflow run.
+ */
 const zEnvSchema = z.object({
   AUTOBLOCKS_REPLAYS_FILEPATH: z.string().nonempty().default('replays.json'),
   GITHUB_REF_NAME: z.string().nonempty(),
+  GITHUB_REPOSITORY: z.string().nonempty(),
+  GITHUB_SHA: z.string().nonempty(),
   GITHUB_WORKSPACE: z.string().nonempty(),
 });
 
@@ -181,7 +187,12 @@ const fetchTraces = async (args: {
     `https://api.autoblocks.ai/views/${args.viewId}/traces`,
     {
       params: { pageSize: args.pageSize },
-      headers: { Authorization: `Bearer ${args.apiKey}` },
+      headers: {
+        Authorization: `Bearer ${args.apiKey}`,
+        'X-Autoblocks-Sha': env.GITHUB_SHA,
+        'X-Autoblocks-Ref': env.GITHUB_REF_NAME,
+        'X-Autoblocks-Repo': env.GITHUB_REPOSITORY,
+      },
     },
   );
   return data;
@@ -626,13 +637,13 @@ const main = async () => {
     const originalBranchName = makeBranchName('original', traceId);
     await gitHubApi.createBranch({
       name: originalBranchName,
-      sha: github.context.sha,
+      sha: env.GITHUB_SHA,
     });
     core.info(`Created branch ${originalBranchName}`);
 
     // Keep track of the head sha of this branch, we'll need it later when
     // creating the branch for the replayed events
-    let headSha = github.context.sha;
+    let headSha = env.GITHUB_SHA;
 
     for (const comparison of comparisons[traceId]) {
       const { id: comparisonId, originalTraceEvent } = comparison;
@@ -782,12 +793,12 @@ const main = async () => {
   });
   // Comment on commit
   await gitHubApi.commentOnCommit({
-    sha: github.context.sha,
+    sha: env.GITHUB_SHA,
     body: comment,
   });
   // Comment on pull request (if there is one)
   await gitHubApi.commentOnPullRequestedAssociatedWithCommit({
-    sha: github.context.sha,
+    sha: env.GITHUB_SHA,
     body: comment,
   });
 };
