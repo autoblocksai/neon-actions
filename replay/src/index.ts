@@ -187,7 +187,7 @@ const fetchTraces = async (args: {
     `https://api.autoblocks.ai/views/${args.viewId}/traces`,
     {
       params: { pageSize: args.pageSize },
-      headers: { 
+      headers: {
         Authorization: `Bearer ${args.apiKey}`,
         'X-Autoblocks-Sha': env.GITHUB_SHA,
         'X-Autoblocks-Ref': env.GITHUB_REF_NAME,
