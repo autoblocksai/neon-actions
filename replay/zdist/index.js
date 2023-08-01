@@ -38109,6 +38109,9 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             url: replayUrl,
             method: replayMethod,
             data: replayPayload,
+            headers: {
+                'X-Autoblocks-Replay-Trace-Id': originalEvent.traceId,
+            },
         };
         const { status, statusText } = yield (0, axios_1.default)(request);
         core.info(`The response is: [${status}] ${statusText}`);

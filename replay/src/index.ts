@@ -600,6 +600,9 @@ const main = async () => {
       url: replayUrl,
       method: replayMethod,
       data: replayPayload,
+      headers: {
+        'X-Autoblocks-Replay-Trace-Id': originalEvent.traceId,
+      },
     };
     const { status, statusText } = await axios(request);
     core.info(`The response is: [${status}] ${statusText}`);
