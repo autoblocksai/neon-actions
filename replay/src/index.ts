@@ -577,6 +577,12 @@ const main = async () => {
         (filter) => get(event, filter.key) === filter.value,
       ),
     makeReplayPayload: (event) => {
+      if (replayTransformConfig.mappers.length === 0) {
+        // Replay the event's properties as-is if there are no mappers
+        return event.properties;
+      }
+
+      // Otherwise, use the mappers to build the replay payload
       const payload: Record<string, unknown> = {};
       for (const mapper of replayTransformConfig.mappers) {
         const payloadKey = mapper.key;

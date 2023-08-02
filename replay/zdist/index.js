@@ -38090,6 +38090,11 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         traces,
         isReplayable: (event) => replayTransformConfig.filters.every((filter) => (0, lodash_1.get)(event, filter.key) === filter.value),
         makeReplayPayload: (event) => {
+            if (replayTransformConfig.mappers.length === 0) {
+                // Replay the event's properties as-is if there are no mappers
+                return event.properties;
+            }
+            // Otherwise, use the mappers to build the replay payload
             const payload = {};
             for (const mapper of replayTransformConfig.mappers) {
                 const payloadKey = mapper.key;
