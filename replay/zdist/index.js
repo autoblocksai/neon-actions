@@ -38118,8 +38118,16 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                 'X-Autoblocks-Replay-Trace-Id': originalEvent.traceId,
             },
         };
-        const { status, statusText } = yield (0, axios_1.default)(request);
-        core.info(`The response is: [${status}] ${statusText}`);
+        try {
+            const { status, statusText } = yield (0, axios_1.default)(request);
+            if (status < 200 || status >= 300) {
+                throw new Error(`[${status}] ${statusText}`);
+            }
+            core.info(`The replay request succeeded: [${status}] ${statusText}`);
+        }
+        catch (err) {
+            core.error(`The replay request failed: ${err}`);
+        }
     }
     // Load the replayed events that were written to a file by the Autoblocks SDK during the replays above
     const replays = yield loadReplays();
