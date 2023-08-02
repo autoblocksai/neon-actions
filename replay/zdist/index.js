@@ -37911,10 +37911,8 @@ const makeComparisonPairs = (args) => {
  */
 const stringifyEvent = (args) => {
     // Filter out any properties on the event that the user has specified to filter out
-    const filters = args.propertyFilterConfig[args.event.message];
-    const filteredProperties = filters
-        ? (0, lodash_1.omit)(args.event.properties, filters)
-        : args.event.properties;
+    const filters = args.propertyFilterConfig[args.event.message] || [];
+    const filteredProperties = (0, lodash_1.omit)(args.event.properties, filters);
     // Note we don't do stringify(event) because we only want to include
     // the message and properties, not the traceId, timestamp, etc.
     return ((0, json_stable_stringify_1.default)({ message: args.event.message, properties: filteredProperties }, { space: 2 }) + '\n');
@@ -38097,9 +38095,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             // Otherwise, use the mappers to build the replay payload
             const payload = {};
             for (const mapper of replayTransformConfig.mappers) {
-                const payloadKey = mapper.key;
-                const payloadValue = (0, lodash_1.get)(event, mapper.value);
-                payload[payloadKey] = payloadValue;
+                payload[mapper.key] = (0, lodash_1.get)(event, mapper.value);
             }
             return payload;
         },
