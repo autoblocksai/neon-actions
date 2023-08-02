@@ -304,10 +304,8 @@ const stringifyEvent = (args: {
   propertyFilterConfig: Record<string, string[]>;
 }) => {
   // Filter out any properties on the event that the user has specified to filter out
-  const filters = args.propertyFilterConfig[args.event.message];
-  const filteredProperties = filters
-    ? omit(args.event.properties, filters)
-    : args.event.properties;
+  const filters = args.propertyFilterConfig[args.event.message] || [];
+  const filteredProperties = omit(args.event.properties, filters);
 
   // Note we don't do stringify(event) because we only want to include
   // the message and properties, not the traceId, timestamp, etc.
@@ -585,9 +583,7 @@ const main = async () => {
       // Otherwise, use the mappers to build the replay payload
       const payload: Record<string, unknown> = {};
       for (const mapper of replayTransformConfig.mappers) {
-        const payloadKey = mapper.key;
-        const payloadValue = get(event, mapper.value);
-        payload[payloadKey] = payloadValue;
+        payload[mapper.key] = get(event, mapper.value);
       }
       return payload;
     },
