@@ -9067,7 +9067,14 @@ const zPushSchema = zod_1.z.object({
 // https://docs.github.com/en/webhooks/webhook-events-and-payloads#delete
 const zDeleteSchema = zod_1.z.object({
     ref: zod_1.z.string().nonempty(),
+    ref_type: zod_1.z.enum(['branch', 'tag']),
 });
+/**
+ * Returns the full ref name of the event that triggered this action.
+ *
+ * For branches, the full ref name will be refs/heads/<branch-name>.
+ * For tags, the full ref name will be refs/tags/<tag-name>.
+ */
 const getRef = () => {
     // GitHub actions are triggered by webhooks and the webhook payload is
     // saved to a JSON file at GITHUB_EVENT_PATH
@@ -9076,7 +9083,9 @@ const getRef = () => {
         case 'pull_request':
             return `refs/heads/${zPullRequestSchema.parse(rawEvent).pull_request.head.ref}`;
         case 'delete':
-            return `refs/heads/${zDeleteSchema.parse(rawEvent).ref}`;
+            const parsed = zDeleteSchema.parse(rawEvent);
+            const refType = parsed.ref_type === 'branch' ? 'heads' : 'tags';
+            return `refs/${refType}/${zDeleteSchema.parse(rawEvent).ref}`;
         case 'push':
             return zPushSchema.parse(rawEvent).ref;
     }
