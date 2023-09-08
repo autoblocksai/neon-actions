@@ -51,9 +51,11 @@ const getRef = (): string => {
 
   switch (env.GITHUB_EVENT_NAME) {
     case 'pull_request':
-      return zPullRequestSchema.parse(rawEvent).pull_request.head.ref;
+      return `refs/heads/${
+        zPullRequestSchema.parse(rawEvent).pull_request.head.ref
+      }`;
     case 'delete':
-      return zDeleteSchema.parse(rawEvent).ref;
+      return `refs/heads/${zDeleteSchema.parse(rawEvent).ref}`;
     case 'push':
       return zPushSchema.parse(rawEvent).ref;
   }
