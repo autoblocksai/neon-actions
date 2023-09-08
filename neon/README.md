@@ -206,6 +206,27 @@ jobs:
           project-id: ${{ vars.NEON_PROJECT_ID }}
 ```
 
+You could also handle both to cover all your bases:
+
+```yaml
+name: Cleanup
+
+on:
+  delete:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: autoblocksai/actions/neon/delete-branches@v1
+        with:
+          api-key: ${{ secrets.NEON_API_KEY }}
+          project-id: ${{ vars.NEON_PROJECT_ID }}
+```
+
 ### Only run when a migrations folder has been modified
 
 If you keep all of your migrations in a folder and only want to run the `create-branch` action when that folder has been modified, you have a few options depending on your workflow setup.
