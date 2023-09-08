@@ -1,10 +1,12 @@
 {
-  "name": "autoblocks-github-actions-replay",
+  "name": "autoblocks-github-actions-neon",
   "version": "1.0.0",
   "private": true,
-  "description": "Replay past Autoblocks events against your APIs",
+  "description": "Create and delete Neon branches from GitHub Actions",
   "scripts": {
-    "build": "ncc build src/index.ts -o zdist",
+    "build:create-branch": "ncc build src/create-branch.ts -o create-branch/zdist",
+    "build:delete-branches": "ncc build src/delete-branches.ts -o delete-branches/zdist",
+    "build": "npm run build:create-branch && npm run build:delete-branches",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -12,9 +14,6 @@
   "license": "MIT",
   "devDependencies": {
     "@types/axios": "^0.14.0",
-    "@types/js-yaml": "^4.0.5",
-    "@types/json-stable-stringify": "^1.0.34",
-    "@types/lodash": "^4.14.195",
     "@types/node": "^20.4.2",
     "@vercel/ncc": "^0.36.1",
     "prettier": "^3.0.0",
@@ -23,12 +22,7 @@
   },
   "dependencies": {
     "@actions/core": "^1.10.0",
-    "@actions/github": "^5.1.1",
     "axios": "^1.4.0",
-    "js-yaml": "^4.1.0",
-    "json-stable-stringify": "^1.0.2",
-    "lodash": "^4.17.21",
-    "nanoid": "^4.0.2",
     "zod": "^3.21.4"
   },
   "prettier": {
