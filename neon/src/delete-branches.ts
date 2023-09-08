@@ -17,7 +17,11 @@ const main = async () => {
   console.log(`Deleting branches with prefix '${neonBranchNamePrefix}':`);
   for (const branch of branchesToDelete) {
     console.log(`  deleting ${branch.name} (${branch.id})`);
-    await neon.deleteBranch(branch.id);
+    try {
+      await neon.deleteBranch(branch.id);
+    } catch (error) {
+      console.log(`    couldn't delete branch: ${error}`);
+    }
     await sleep(1000); // Sleep between deletes to be polite
   }
 };

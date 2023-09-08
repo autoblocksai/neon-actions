@@ -8978,7 +8978,12 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log(`Deleting branches with prefix '${neonBranchNamePrefix}':`);
     for (const branch of branchesToDelete) {
         console.log(`  deleting ${branch.name} (${branch.id})`);
-        yield neon.deleteBranch(branch.id);
+        try {
+            yield neon.deleteBranch(branch.id);
+        }
+        catch (error) {
+            console.log(`    couldn't delete branch: ${error}`);
+        }
         yield (0, util_1.sleep)(1000); // Sleep between deletes to be polite
     }
 });
