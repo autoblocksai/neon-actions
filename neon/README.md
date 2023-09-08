@@ -41,8 +41,6 @@ jobs:
           project-id: ${{ vars.NEON_PROJECT_ID }}
 ```
 
-This will create a Neon branch on every commit to every branch in your repository and then delete the associated Neon branches when a GitHub branch is deleted.
-
 ## Setup
 
 - Get your Neon API key and add it to your repository as a **secret**
