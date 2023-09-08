@@ -2,8 +2,8 @@
   <img src="https://app.autoblocks.ai/images/logo.png" width="400px">
 </p>
 <p align="center">
-  <img src="assets/neon.svg" width="64px">
-  <img src="assets/github_name.png" width="64px">
+  <img src="assets/neon_white.svg#gh-dark-mode-only">
+  <img src="assets/neon_white.svg#gh-light-mode-only">
 </p>
 <p align="center">
   <a href="https://github.com/autoblocksai/actions/actions/workflows/ci.yml">
