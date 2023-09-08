@@ -3,7 +3,7 @@
 </p>
 <p align="center">
   <img src="assets/neon.svg" width="64px">
-  <img src="assets/github.png" width="64px">
+  <img src="assets/github_name.png" width="64px">
 </p>
 <p align="center">
   <a href="https://github.com/autoblocksai/actions/actions/workflows/ci.yml">
@@ -11,7 +11,7 @@
   </a>
 </p>
 
-# Neon Branches + GitHub Actions
+# Neon Branching in GitHub Actions
 
 These actions allow you to easily manage [Neon branches](https://neon.tech/docs/introduction/branching) as you make changes in your repository. Usage is as simple as:
 
