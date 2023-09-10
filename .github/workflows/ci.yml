@@ -1,9 +1,6 @@
 name: CI
 
-on:
-  push:
-    branches-ignore:
-      - main
+on: push
 
 jobs:
   ci:
@@ -13,6 +10,7 @@ jobs:
       matrix:
         project:
           - replay
+          - neon
 
     defaults:
       run:

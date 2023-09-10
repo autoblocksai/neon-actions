@@ -1,0 +1,22 @@
+name: Create Neon Branch
+description: Create a Neon branch on every commit to a GitHub branch
+inputs:
+  api-key:
+    required: true
+  project-id:
+    required: true
+  endpoint-type:
+    required: false
+    default: read_write
+  endpoint-autoscaling-limit-min-cu:
+    required: false
+    default: 0.25
+  endpoint-autoscaling-limit-max-cu:
+    required: false
+    default: 0.25
+  endpoint-suspend-timeout-seconds:
+    required: false
+    default: 0
+runs:
+  using: node16
+  main: zdist/index.js

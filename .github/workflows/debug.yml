@@ -1,0 +1,16 @@
+# Dump GitHub context for various events to help with debugging
+name: Debug
+
+on:
+  - push
+  - pull_request
+  - delete
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
