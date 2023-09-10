@@ -13,7 +13,7 @@
 
 # Neon Branching in GitHub Actions
 
-These actions allow you to easily manage [Neon branches](https://neon.tech/docs/introduction/branching) as you make changes in your repository. Usage is as simple as:
+These actions allow you to easily manage [Neon branches](https://neon.tech/docs/introduction/branching) within your GitHub Actions workflows. Usage is as simple as:
 
 ```yaml
 name: CI
@@ -57,7 +57,7 @@ This project provides two actions:
 
 **`create-branch`**:
 
-This action creates a Neon branch for the current GitHub branch and commit. The Neon branch name will be the GitHub branch name plus the first seven characters of the commit SHA. For example, if you create a branch called `feat/my-feature` and push three commits, the following Neon branches will be created:
+This action creates a Neon branch for the current GitHub branch and commit. The Neon branch name will be the GitHub branch name plus the first seven characters of the commit SHA. For example, if you create a GitHub branch called `feat/my-feature` and push three commits, the following Neon branches will be created:
 
 - `feat/my-feature-61b5d0a`
 - `feat/my-feature-ff2a8ea`
@@ -68,6 +68,108 @@ The Neon branch that is created always branches off of your primary Neon branch.
 **`delete-branches`** :
 
 This action deletes all Neon branches associated with the deleted GitHub branch. From the example above, when you delete the `feat/my-feature` branch either directly or by merging its pull request (and have your repository set up to automatically delete branches when pull requests are merged), then the three Neon branches will be deleted.
+
+## Supported Events
+
+The supported events are:
+
+- `push`
+- `pull_request`
+- `delete`
+
+The branch name is determined automatically from the event. For `push` and `pull_request` events, the branch name is the name of the branch that was pushed or the name of the branch that the pull request is for. For `delete` events, the branch name is the name of the branch that was deleted.
+
+Note that you can use any combination of these events to create and delete Neon branches:
+
+- Create branches on `push`
+- Delete branches on `delete`
+
+```yaml
+name: CI
+on: push
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: autoblocksai/actions/neon/create-branch@v1
+        with:
+          api-key: ${{ secrets.NEON_API_KEY }}
+          project-id: ${{ vars.NEON_PROJECT_ID }}
+```
+
+```yaml
+name: Cleanup
+on: delete
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: autoblocksai/actions/neon/delete-branches@v1
+        with:
+          api-key: ${{ secrets.NEON_API_KEY }}
+          project-id: ${{ vars.NEON_PROJECT_ID }}
+```
+
+- Create branches on `pull_request`
+- Delete branches on `pull_request` (set `types` to `[closed]`)
+
+```yaml
+name: CI
+on: pull_request
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: autoblocksai/actions/neon/create-branch@v1
+        with:
+          api-key: ${{ secrets.NEON_API_KEY }}
+          project-id: ${{ vars.NEON_PROJECT_ID }}
+```
+
+```yaml
+name: Cleanup
+on:
+  pull_request:
+    types:
+      - closed
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: autoblocksai/actions/neon/delete-branches@v1
+        with:
+          api-key: ${{ secrets.NEON_API_KEY }}
+          project-id: ${{ vars.NEON_PROJECT_ID }}
+```
+
+- Create branches on `pull_request`
+- Delete branches on `delete`
+
+```yaml
+name: CI
+on: pull_request
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: autoblocksai/actions/neon/create-branch@v1
+        with:
+          api-key: ${{ secrets.NEON_API_KEY }}
+          project-id: ${{ vars.NEON_PROJECT_ID }}
+```
+
+```yaml
+name: Cleanup
+on: delete
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: autoblocksai/actions/neon/delete-branches@v1
+        with:
+          api-key: ${{ secrets.NEON_API_KEY }}
+          project-id: ${{ vars.NEON_PROJECT_ID }}
+```
 
 ## `create-branch`
 
