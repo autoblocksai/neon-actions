@@ -77,6 +77,8 @@ const getOrCreateBranch = async (
 const setOutputsFromEndpoint = (endpoint: Endpoint) => {
   const direct = endpoint.host;
   const pooled = endpoint.host.replace(endpoint.id, `${endpoint.id}-pooler`);
+  console.log(`Direct host: ${direct}`);
+  console.log(`Pooled host: ${pooled}`);
   actions.setOutput('direct-host', direct);
   actions.setOutput('pooled-host', pooled);
 };

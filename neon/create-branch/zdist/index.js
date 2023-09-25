@@ -9050,6 +9050,8 @@ const getOrCreateBranch = (neon, neonBranchName) => __awaiter(void 0, void 0, vo
 const setOutputsFromEndpoint = (endpoint) => {
     const direct = endpoint.host;
     const pooled = endpoint.host.replace(endpoint.id, `${endpoint.id}-pooler`);
+    console.log(`Direct host: ${direct}`);
+    console.log(`Pooled host: ${pooled}`);
     actions.setOutput('direct-host', direct);
     actions.setOutput('pooled-host', pooled);
 };
