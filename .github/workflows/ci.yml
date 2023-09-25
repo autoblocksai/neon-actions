@@ -6,16 +6,6 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        project:
-          - replay
-          - neon
-
-    defaults:
-      run:
-        working-directory: ${{ matrix.project }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
