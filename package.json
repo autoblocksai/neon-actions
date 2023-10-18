@@ -23,7 +23,7 @@
   "dependencies": {
     "@actions/core": "^1.10.0",
     "axios": "^1.4.0",
-    "zod": "^3.21.4"
+    "zod": "^3.22.3"
   },
   "prettier": {
     "printWidth": 80,
