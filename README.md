@@ -22,7 +22,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/create-branch@v1
+      - uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -35,7 +35,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/delete-branches@v1
+      - uses: autoblocksai/neon-actions/delete-branches@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -91,7 +91,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/create-branch@v1
+      - uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -104,7 +104,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/delete-branches@v1
+      - uses: autoblocksai/neon-actions/delete-branches@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -120,7 +120,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/create-branch@v1
+      - uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -136,7 +136,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/delete-branches@v1
+      - uses: autoblocksai/neon-actions/delete-branches@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -152,7 +152,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/create-branch@v1
+      - uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -165,7 +165,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/delete-branches@v1
+      - uses: autoblocksai/neon-actions/delete-branches@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -221,7 +221,7 @@ jobs:
 
       - name: Create neon branch
         id: neon
-        uses: autoblocksai/neon-actions/create-branch@v1
+        uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -257,7 +257,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/delete-branches@v1
+      - uses: autoblocksai/neon-actions/delete-branches@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -280,7 +280,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/create-branch@v1
+      - uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -302,7 +302,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/delete-branches@v1
+      - uses: autoblocksai/neon-actions/delete-branches@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -323,7 +323,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/delete-branches@v1
+      - uses: autoblocksai/neon-actions/delete-branches@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -347,7 +347,7 @@ jobs:
   test-migrations:
     runs-on: ubuntu-latest
     steps:
-      - uses: autoblocksai/neon-actions/create-branch@v1
+      - uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
@@ -391,7 +391,7 @@ jobs:
       - if: steps.changes.outputs.migrations == 'true'
         name: Create neon branch
         id: neon
-        uses: autoblocksai/neon-actions/create-branch@v1
+        uses: autoblocksai/neon-actions/create-branch@v1.1
         with:
           api-key: ${{ secrets.NEON_API_KEY }}
           project-id: ${{ vars.NEON_PROJECT_ID }}
